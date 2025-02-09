@@ -1,0 +1,52 @@
+{
+  "optimization_id": "opt_ETH_USD_20250209_085329",
+  "symbol": "ETH/USD",
+  "training_period": {
+    "start": "2022-12-31",
+    "end": "2023-12-31"
+  },
+  "market_conditions": {
+    "high_volatility": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 5,
+            "medium": 15,
+            "volatility_window": 40,
+            "volatility_threshold": 2.0,
+            "min_trend_strength": 0.002
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 1.5,
+            "baseline_lookback_gap": 0,
+            "min_periods_multiplier": 0.75
+          }
+        },
+        "sharpe_ratio": 7.358763754644993
+      }
+    },
+    "normal": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 5,
+            "medium": 15,
+            "volatility_window": 40,
+            "volatility_threshold": 1.5,
+            "min_trend_strength": 0.002
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 2,
+            "baseline_lookback_gap": 5,
+            "min_periods_multiplier": 0.75
+          }
+        },
+        "sharpe_ratio": 2.7149103782388653
+      }
+    }
+  },
+  "timestamp": "2025-02-09T08:53:29.818193",
+  "results_file": "backtest_results\\ETH_USD\\optimization_opt_ETH_USD_20250209_085329.json"
+}

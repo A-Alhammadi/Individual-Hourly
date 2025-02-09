@@ -1,0 +1,21 @@
+=== Test Period Performance for XRP/USD ===
+Test Period: 2024-09-01 to 2024-12-30
+
+Regime-Based EMA Strategy Metrics:
+Total Return: 101.12%
+Annual Return: 307.58%
+Sharpe Ratio: 0.55
+Max Drawdown: 29.69%
+Number of Trades: 16
+Win Rate: 37.50%
+
+Buy and Hold Metrics:
+Total Return: 271.73%
+Annual Return: 826.52%
+
+Strategy vs Buy and Hold:
+Outperformance: -170.61%
+
+Regime Statistics:
+High Volatility Periods: 1389 (7.3%)
+Normal Volatility Periods: 17576 (92.7%)

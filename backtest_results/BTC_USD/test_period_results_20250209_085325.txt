@@ -1,0 +1,21 @@
+=== Test Period Performance for BTC/USD ===
+Test Period: 2024-01-01 to 2024-06-01
+
+Regime-Based EMA Strategy Metrics:
+Total Return: 29.66%
+Annual Return: 71.22%
+Sharpe Ratio: 0.36
+Max Drawdown: 19.09%
+Number of Trades: 122
+Win Rate: 40.98%
+
+Buy and Hold Metrics:
+Total Return: 59.12%
+Annual Return: 141.97%
+
+Strategy vs Buy and Hold:
+Outperformance: -29.46%
+
+Regime Statistics:
+High Volatility Periods: 1786 (9.4%)
+Normal Volatility Periods: 17179 (90.6%)

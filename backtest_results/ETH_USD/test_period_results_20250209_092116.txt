@@ -1,0 +1,21 @@
+=== Test Period Performance for ETH/USD ===
+Test Period: 2024-01-01 to 2024-06-01
+
+Regime-Based EMA Strategy Metrics:
+Total Return: 33.43%
+Annual Return: 80.29%
+Sharpe Ratio: 0.36
+Max Drawdown: 17.11%
+Number of Trades: 334
+Win Rate: 35.33%
+
+Buy and Hold Metrics:
+Total Return: 63.84%
+Annual Return: 153.31%
+
+Strategy vs Buy and Hold:
+Outperformance: -30.41%
+
+Regime Statistics:
+High Volatility Periods: 1048 (5.5%)
+Normal Volatility Periods: 17917 (94.5%)

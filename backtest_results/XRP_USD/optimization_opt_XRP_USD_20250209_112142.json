@@ -1,0 +1,52 @@
+{
+  "optimization_id": "opt_XRP_USD_20250209_112142",
+  "symbol": "XRP/USD",
+  "training_period": {
+    "start": "2024-05-03",
+    "end": "2024-08-31"
+  },
+  "market_conditions": {
+    "high_volatility": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 5,
+            "medium": 30,
+            "volatility_window": 60,
+            "volatility_threshold": 2.0,
+            "min_trend_strength": 0.02
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 1.5,
+            "baseline_lookback_gap": 0,
+            "min_periods_multiplier": 0.75
+          }
+        },
+        "sharpe_ratio": 13.362311924075543
+      }
+    },
+    "normal": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 5,
+            "medium": 15,
+            "volatility_window": 60,
+            "volatility_threshold": 1.2,
+            "min_trend_strength": 0.02
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 2,
+            "baseline_lookback_gap": 0,
+            "min_periods_multiplier": 0.75
+          }
+        },
+        "sharpe_ratio": 5.180340925994687
+      }
+    }
+  },
+  "timestamp": "2025-02-09T11:21:42.737267",
+  "results_file": "backtest_results\\XRP_USD\\optimization_opt_XRP_USD_20250209_112142.json"
+}

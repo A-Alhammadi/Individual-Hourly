@@ -1,0 +1,52 @@
+{
+  "optimization_id": "opt_LTC_USD_20250209_074814",
+  "symbol": "LTC/USD",
+  "training_period": {
+    "start": "2022-12-31",
+    "end": "2023-12-31"
+  },
+  "market_conditions": {
+    "high_volatility": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 10,
+            "medium": 15,
+            "volatility_window": 60,
+            "volatility_threshold": 2.0,
+            "min_trend_strength": 0.002
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 1.5,
+            "baseline_lookback_gap": 0,
+            "min_periods_multiplier": 0.75
+          }
+        },
+        "sharpe_ratio": 7.933848509728028
+      }
+    },
+    "normal": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 10,
+            "medium": 45,
+            "volatility_window": 60,
+            "volatility_threshold": 2.0,
+            "min_trend_strength": 0.002
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 2,
+            "baseline_lookback_gap": 5,
+            "min_periods_multiplier": 0.75
+          }
+        },
+        "sharpe_ratio": 2.2879541637098866
+      }
+    }
+  },
+  "timestamp": "2025-02-09T07:48:14.990899",
+  "results_file": "backtest_results\\LTC_USD\\optimization_opt_LTC_USD_20250209_074814.json"
+}

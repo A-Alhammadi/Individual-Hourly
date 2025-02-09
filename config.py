@@ -25,9 +25,9 @@ BACKTEST_CONFIG = {
     
     # Optimization configuration
     "optimization": {
-        "training_days": 365,  # Number of days to use for training before test period
-        "testing_start": "2024-01-01",   # Start date for testing period
-        "testing_end": "2024-06-01",     # End date for testing period
+        "training_days": 120,  # Number of days to use for training before test period
+        "testing_start": "2024-09-01",   # Start date for testing period
+        "testing_end": "2024-12-30",     # End date for testing period
         "min_training_days": 30,         # Minimum days required for training
         
         # Parameter ranges for optimization
@@ -37,8 +37,9 @@ BACKTEST_CONFIG = {
                 "medium": range(15, 46, 15),  # 3 values [15,30,45]
                 "volatility_window": [20, 40, 60],  # 3 values
                 "volatility_threshold": [1.2, 1.5, 2.0],  # 3 values
-                "min_trend_strength": [0.002, 0.005, 0.01, 0.015, 0.02]  # 0.2% to 2% minimum trend strength
+                "min_trend_strength": [0.002, 0.01, 0.02] # 5 values 0.2% to 2% minimum trend strength [0.002, 0.005, 0.01, 0.015, 0.02]
             },
+            
             "volatility": {
                 "annualization_factor": [365*24],  # 1 value (stick with hourly)
                 "baseline_window_multiplier": [1.5, 2],  # 2 values
@@ -53,7 +54,8 @@ BACKTEST_CONFIG = {
         "short": 9,
         "medium": 21,
         "volatility_window": 30,
-        "volatility_threshold": 1.5
+        "volatility_threshold": 1.5,
+        "min_trend_strength": 0.002
     },
     
     "volatility": {

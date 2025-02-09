@@ -44,7 +44,8 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
         ema_ranges['short'],
         ema_ranges['medium'],
         ema_ranges['volatility_window'],
-        ema_ranges['volatility_threshold']
+        ema_ranges['volatility_threshold'],
+        ema_ranges['min_trend_strength']
     ]
     
     vol_params = [
@@ -67,7 +68,8 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
             'short': ema_combo[0],
             'medium': ema_combo[1],
             'volatility_window': ema_combo[2],
-            'volatility_threshold': ema_combo[3]
+            'volatility_threshold': ema_combo[3],
+            'min_trend_strength': ema_combo[4]
         }
         
         # Skip invalid EMA combinations
@@ -254,6 +256,10 @@ class OptimizedStrategy:
         regime_transitions = 0
         last_regime = None
         
+        # Track filtered trades
+        filtered_trades = 0
+        potential_trades = 0
+        
         # Generate signals for each bar
         for i in range(len(df)):
             # Detect current market regime using parameters
@@ -266,20 +272,34 @@ class OptimizedStrategy:
             
             # Get regime-specific parameters
             if regime in self.market_condition_params:
-                params = self.market_condition_params[regime]['ema']['parameters']['ema']  # Note the extra ['ema']
+                params = self.market_condition_params[regime]['ema']['parameters']['ema'].copy()
+                # Ensure min_trend_strength is included
+                if 'min_trend_strength' not in params:
+                    params['min_trend_strength'] = BACKTEST_CONFIG['ema']['min_trend_strength']
             else:
                 params = BACKTEST_CONFIG['ema']
             
             # Calculate EMAs up to current bar using current regime's parameters
             current_data = df.iloc[:i+1]
-            short_ema = current_data['close_price'].ewm(span=params['short'], adjust=False).mean().iloc[-1]
-            medium_ema = current_data['close_price'].ewm(span=params['medium'], adjust=False).mean().iloc[-1]
+            short_ema = current_data['close_price'].ewm(span=params['short'], adjust=False).mean()
+            medium_ema = current_data['close_price'].ewm(span=params['medium'], adjust=False).mean()
             
-            # Generate signal based on EMAs
-            if short_ema > medium_ema:
-                final_signals.iloc[i] = 1
-            elif short_ema < medium_ema:
-                final_signals.iloc[i] = -1
+            # Calculate trend strength
+            trend_strength = abs(short_ema.iloc[-1] - medium_ema.iloc[-1]) / medium_ema.iloc[-1]
+            
+            # Check for potential signal
+            if short_ema.iloc[-1] != medium_ema.iloc[-1]:  # If there's a potential signal
+                potential_trades += 1
+                
+                # Generate signal based on EMAs and trend strength
+                if trend_strength >= params['min_trend_strength']:
+                    if short_ema.iloc[-1] > medium_ema.iloc[-1]:
+                        final_signals.iloc[i] = 1
+                    else:
+                        final_signals.iloc[i] = -1
+                else:
+                    filtered_trades += 1
+                    final_signals.iloc[i] = 0
             else:
                 final_signals.iloc[i] = 0
         
@@ -290,6 +310,7 @@ class OptimizedStrategy:
         print(f"Total signals: {num_buys + num_sells}")
         print(f"  Buys: {num_buys}")
         print(f"  Sells: {num_sells}")
+        print(f"Potential trades filtered by trend strength: {filtered_trades}/{potential_trades} ({filtered_trades/potential_trades*100:.1f}% filtered)")
         
         # Store regime changes for later analysis
         final_signals.regime_changes = regime_changes

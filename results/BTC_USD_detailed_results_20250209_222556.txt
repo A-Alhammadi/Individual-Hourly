@@ -1,0 +1,26 @@
+=== EMA Strategy Backtest Results ===
+Symbol: BTC/USD
+Period: 2024-01-01 to 2024-02-01
+Initial Capital: $10,000.00
+
+=== Performance Metrics ===
+Final Portfolio Value: $10,000.00
+Total Return: 0.00%
+Buy & Hold Return: -0.05%
+Annualized Volatility: 0.00%
+Sharpe Ratio: 0.00
+Maximum Drawdown: 0.00%
+
+=== Regime Statistics ===
+Total Trading Periods: 745
+High Volatility Periods: 6 (0.8%)
+Normal Volatility Periods: 739 (99.2%)
+
+=== Strategy Parameters ===
+High Volatility Regime:
+  EMA Parameters: {'short': 5, 'medium': 15, 'volatility_window': 60, 'volatility_threshold': 2.0, 'min_trend_strength': 0.01}
+  Volatility Parameters: {'annualization_factor': 8760, 'baseline_window_multiplier': 2, 'baseline_lookback_gap': 5, 'min_periods_multiplier': 0.75}
+
+Normal Regime:
+  EMA Parameters: {'short': 15, 'medium': 30, 'volatility_window': 40, 'volatility_threshold': 1.2, 'min_trend_strength': 0.02}
+  Volatility Parameters: {'annualization_factor': 8760, 'baseline_window_multiplier': 1.5, 'baseline_lookback_gap': 5, 'min_periods_multiplier': 0.75}
