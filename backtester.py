@@ -1,8 +1,9 @@
-#backtester.py
+# backtester.py
 
 import pandas as pd
 import numpy as np
 from config import BACKTEST_CONFIG
+from indicators import TechnicalIndicators
 
 class Backtester:
     def __init__(self, df, strategy_name, strategy_func):
@@ -20,114 +21,193 @@ class Backtester:
             'low': 'low_price' if 'low_price' in df.columns else 'low',
             'open': 'open_price' if 'open_price' in df.columns else 'open'
         }
-        
+
     def run(self):
-        # Get trading signals
-        signals = self.strategy_func(self.df)
+        """Run backtest with the selected strategy"""
+        print("\nRunning backtest...")
+        print(f"Initial capital: ${self.initial_capital}")
         
+        # Get trading signals
+        df_copy = self.df.copy()  # Make an explicit copy
+        df_copy = TechnicalIndicators.add_all_indicators(df_copy)  # Add indicators here
+        signals = self.strategy_func(df_copy)        
+        #signals = self.strategy_func(self.df)
+
         # Initialize portfolio metrics with float dtype
         portfolio = pd.DataFrame(index=self.df.index)
         portfolio['holdings'] = 0.0
         portfolio['cash'] = float(self.initial_capital)
         portfolio['signal'] = signals
-        
+
         # Copy price data to portfolio
         for col_type, col_name in self.price_columns.items():
             portfolio[col_type] = self.df[col_name]
-        
+
         # Ensure float dtype for numerical columns
         portfolio = portfolio.astype({
-            'holdings': 'float64', 
+            'holdings': 'float64',
             'cash': 'float64',
             'close': 'float64',
             'high': 'float64',
             'low': 'float64',
             'open': 'float64'
         })
-        
+
         position = 0
         trades = []
-        
+
         for i in range(len(portfolio)):
             if i > 0:
                 portfolio.loc[portfolio.index[i], 'cash'] = portfolio.loc[portfolio.index[i-1], 'cash']
                 portfolio.loc[portfolio.index[i], 'holdings'] = portfolio.loc[portfolio.index[i-1], 'holdings']
-            
+
             signal = portfolio.iloc[i, portfolio.columns.get_loc('signal')]
-            
-            if signal == 1 and position == 0:  # Buy signal
-                # Calculate position size
-                available_capital = float(portfolio.loc[portfolio.index[i], 'cash'])
-                position_value = available_capital * self.position_size
-                units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
-                
-                # Apply trading fee
-                fee = position_value * self.trading_fee
-                
-                # Update portfolio using loc
-                portfolio.loc[portfolio.index[i], 'holdings'] = float(units)
-                portfolio.loc[portfolio.index[i], 'cash'] = float(available_capital - (position_value + fee))
-                position = 1
-                
-                # Record trade
-                trades.append({
-                    'date': portfolio.index[i],
-                    'type': 'BUY',
-                    'price': float(portfolio.loc[portfolio.index[i], 'close']),
-                    'units': float(units),
-                    'value': float(position_value),
-                    'fee': float(fee)
-                })
-                
-            elif signal == -1 and position == 1:  # Sell signal
-                # Calculate position value
-                units = float(portfolio.loc[portfolio.index[i], 'holdings'])
-                position_value = units * float(portfolio.loc[portfolio.index[i], 'close'])
-                
-                # Apply trading fee
-                fee = position_value * self.trading_fee
-                
-                # Update portfolio using loc
-                portfolio.loc[portfolio.index[i], 'holdings'] = 0.0
-                portfolio.loc[portfolio.index[i], 'cash'] = float(portfolio.loc[portfolio.index[i], 'cash'] + position_value - fee)
-                position = 0
-                
-                # Record trade
-                trades.append({
-                    'date': portfolio.index[i],
-                    'type': 'SELL',
-                    'price': float(portfolio.loc[portfolio.index[i], 'close']),
-                    'units': float(units),
-                    'value': float(position_value),
-                    'fee': float(fee)
-                })
-        
+
+            # 1) If the signal is > 0, we treat that as "BUY or COVER"
+            if signal > 0:
+                # If position == 0, we open a new long
+                if position == 0:
+                    available_capital = float(portfolio.loc[portfolio.index[i], 'cash'])
+                    position_value = available_capital * self.position_size
+                    units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
+
+                    fee = position_value * self.trading_fee
+
+                    portfolio.loc[portfolio.index[i], 'holdings'] = float(units)
+                    portfolio.loc[portfolio.index[i], 'cash'] = float(available_capital - (position_value + fee))
+                    position = 1
+
+                    trades.append({
+                        'date': portfolio.index[i],
+                        'type': 'BUY',
+                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'units': float(units),
+                        'value': float(position_value),
+                        'fee': float(fee)
+                    })
+
+                # If position == -1, then signal > 0 means "COVER" (close short)
+                elif position == -1:
+                    units = float(portfolio.loc[portfolio.index[i], 'holdings'])  # negative
+                    position_value = abs(units) * float(portfolio.loc[portfolio.index[i], 'close'])
+
+                    fee = position_value * self.trading_fee
+
+                    portfolio.loc[portfolio.index[i], 'holdings'] = 0.0
+                    portfolio.loc[portfolio.index[i], 'cash'] = float(
+                    portfolio.loc[portfolio.index[i], 'cash'] - position_value - fee
+                )
+
+                    position = 0
+
+                    trades.append({
+                        'date': portfolio.index[i],
+                        'type': 'COVER',
+                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'units': float(units),  # negative means we were short
+                        'value': float(position_value),
+                        'fee': float(fee)
+                    })
+
+            # 2) If the signal is < 0, we treat that as "SELL or SHORT"
+            elif signal < 0:
+                # If position == 0, we open a new short
+                if position == 0:
+                    available_capital = float(portfolio.loc[portfolio.index[i], 'cash'])
+                    position_value = available_capital * self.position_size
+                    units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
+
+                    fee = position_value * self.trading_fee
+
+                    # holdings is negative to denote a short
+                    portfolio.loc[portfolio.index[i], 'holdings'] = float(-units)
+                    portfolio.loc[portfolio.index[i], 'cash'] = float(available_capital + position_value - fee)
+                    position = -1
+
+                    trades.append({
+                        'date': portfolio.index[i],
+                        'type': 'SHORT',
+                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'units': float(-units),
+                        'value': float(position_value),
+                        'fee': float(fee)
+                    })
+
+                # If position == 1, then signal < 0 means "SELL" (close long)
+                elif position == 1:
+                    units = float(portfolio.loc[portfolio.index[i], 'holdings'])
+                    position_value = units * float(portfolio.loc[portfolio.index[i], 'close'])
+
+                    fee = position_value * self.trading_fee
+
+                    portfolio.loc[portfolio.index[i], 'holdings'] = 0.0
+                    portfolio.loc[portfolio.index[i], 'cash'] = float(portfolio.loc[portfolio.index[i], 'cash'] + position_value - fee)
+                    position = 0
+
+                    trades.append({
+                        'date': portfolio.index[i],
+                        'type': 'SELL',
+                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'units': float(units),
+                        'value': float(position_value),
+                        'fee': float(fee)
+                    })
+
         # Calculate portfolio value
-        portfolio['holdings_value'] = portfolio['holdings'] * self.df['close_price'].astype(float)
+        portfolio['holdings_value'] = portfolio['holdings'] * portfolio['close'].astype(float)
         portfolio['total_value'] = portfolio['cash'] + portfolio['holdings_value']
-        
+
+        # Calculate hourly returns
+        portfolio['hourly_returns'] = portfolio['total_value'].pct_change()
+
         # Calculate metrics
         total_return = (portfolio['total_value'].iloc[-1] - self.initial_capital) / self.initial_capital
-        buy_and_hold_return = (float(self.df['close_price'].iloc[-1]) - float(self.df['close_price'].iloc[0])) / float(self.df['close_price'].iloc[0])
-        
-        # Calculate daily returns and metrics
-        portfolio['daily_returns'] = portfolio['total_value'].pct_change()
-        
-        annual_return = total_return * (365 / len(portfolio))
-        sharpe_ratio = np.sqrt(365) * (portfolio['daily_returns'].mean() / portfolio['daily_returns'].std())
-        max_drawdown = ((portfolio['total_value'].cummax() - portfolio['total_value']) / portfolio['total_value'].cummax()).max()
-        
+        buy_and_hold_return = (
+            float(self.df[self.price_columns['close']].iloc[-1]) -
+            float(self.df[self.price_columns['close']].iloc[0])
+        ) / float(self.df[self.price_columns['close']].iloc[0])
+
+        # Calculate annualized metrics using hourly data
+        hours_in_period = len(portfolio)
+        hours_per_year = 365 * 24
+        annual_return = total_return * (hours_per_year / hours_in_period)
+
+        # Calculate Sharpe ratio using hourly data
+        if portfolio['hourly_returns'].std() > 0:
+            hourly_sharpe = np.sqrt(hours_per_year) * (
+                portfolio['hourly_returns'].mean() / portfolio['hourly_returns'].std()
+            )
+        else:
+            hourly_sharpe = 0
+
+        max_drawdown = (
+            (portfolio['total_value'].cummax() - portfolio['total_value']) /
+            portfolio['total_value'].cummax()
+        ).max()
+
         trades_df = pd.DataFrame(trades)
-        num_trades = len(trades)
-        win_rate = len(trades_df[trades_df['value'] > trades_df['value'].shift(1)]) / (num_trades // 2) if num_trades > 0 else 0
-        
-        # Calculate metrics with regime-specific focus
+        num_trades = len(trades_df)
+
+        # Calculate win rate
+        if num_trades > 1:
+            paired_trades = trades_df.iloc[::2]  # Entry trades (every other row)
+            exit_trades = trades_df.iloc[1::2]   # Exit trades
+            wins = sum(
+                exit_trades['value'].reset_index(drop=True).to_numpy()
+                >
+                paired_trades['value'].reset_index(drop=True).to_numpy()
+            )
+            win_rate = wins / len(paired_trades)
+        else:
+            win_rate = 0
+
+        # Prepare overall metrics
         metrics = {
             'Strategy': self.strategy_name,
             'Total Return': f"{total_return * 100:.2f}%",
             'Buy and Hold Return': f"{buy_and_hold_return * 100:.2f}%",
             'Annual Return': f"{annual_return * 100:.2f}%",
-            'Sharpe Ratio': f"{sharpe_ratio:.2f}",
+            'Sharpe Ratio': f"{hourly_sharpe:.2f}",
             'Max Drawdown': f"{max_drawdown * 100:.2f}%",
             'Trading Statistics': {
                 'Number of Trades': num_trades,
@@ -140,29 +220,48 @@ class Backtester:
                     f"${trades_df['value'].mean():.2f}"
                     if num_trades > 0 else "N/A"
                 ),
-                'Total Trading Fees': f"${trades_df['fee'].sum():.2f}" if num_trades > 0 else "$0.00"
+                'Total Trading Fees': (
+                    f"${trades_df['fee'].sum():.2f}"
+                    if num_trades > 0 else "$0.00"
+                )
             }
         }
 
         # Add trade analysis by regime if regime changes are available
-        if hasattr(self.strategy_func, 'regime_changes'):
+        if hasattr(signals, 'regime_changes'):
+            trades_df = trades_df.reset_index(drop=True)  # Just reset_index, no rename
+            # do NOT rename the 'index' column to 'date' now
+
             regime_trades = pd.merge(
                 trades_df,
-                self.strategy_func.regime_changes,
-                left_on='date',
-                right_index=True,
+                signals.regime_changes, 
+                left_on='date',          # The trades_df already has 'date' from the dictionary
+                right_index=True, 
                 how='left'
             )
-            
+
             for regime in ['high_volatility', 'normal']:
                 regime_stats = regime_trades[regime_trades['regime'] == regime]
                 if not regime_stats.empty:
+                    paired_regime_trades = regime_stats.iloc[::2]  # Entry trades
+                    exit_regime_trades = regime_stats.iloc[1::2]   # Exit trades
+                    if len(paired_regime_trades) > 0 and len(exit_regime_trades) > 0:
+                        min_length = min(len(paired_regime_trades), len(exit_regime_trades))  # Ensure equal length
+                        regime_wins = sum(
+                            exit_regime_trades['value'].reset_index(drop=True).iloc[:min_length].to_numpy()
+                            >
+                            paired_regime_trades['value'].reset_index(drop=True).iloc[:min_length].to_numpy()
+                        )
+                        regime_win_rate = regime_wins / min_length  # Use min_length to avoid division errors
+                    else:
+                        regime_win_rate = 0  # Default to 0 if no valid trades
+
                     metrics[f'{regime.title()} Regime'] = {
                         'Number of Trades': len(regime_stats),
-                        'Win Rate': f"{(len(regime_stats[regime_stats['value'] > regime_stats['value'].shift(1)]) / (len(regime_stats)//2) * 100):.2f}%",
+                        'Win Rate': f"{regime_win_rate * 100:.2f}%",
                         'Average Trade Size': f"${regime_stats['value'].mean():.2f}"
                     }
-        
+
         return {
             'metrics': metrics,
             'portfolio': portfolio,

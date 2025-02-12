@@ -18,6 +18,7 @@ class DatabaseHandler:
             raise
 
     def get_historical_data(self, symbol, start_date, end_date):
+        """Get historical data with precise hourly timestamps"""
         query = """
             SELECT 
                 date_time,
@@ -29,11 +30,16 @@ class DatabaseHandler:
                 volume_usd
             FROM crypto_data_hourly
             WHERE symbol = %s
-            AND date_time BETWEEN %s AND %s
+            AND date_time >= %s::timestamp
+            AND date_time <= %s::timestamp
             ORDER BY date_time ASC
         """
         
         try:
+            print(f"\nFetching data for {symbol}:")
+            print(f"Start: {start_date}")
+            print(f"End: {end_date}")
+            
             df = pd.read_sql_query(
                 query,
                 self.conn,
@@ -44,8 +50,11 @@ class DatabaseHandler:
             # Set date_time as index
             df.set_index('date_time', inplace=True)
             
-            return df
+            print(f"Fetched {len(df)} hourly records")
+            print(f"Date range: {df.index.min()} to {df.index.max()}")
             
+            return df
+                
         except Exception as e:
             print(f"Error fetching data: {str(e)}")
             raise
@@ -53,4 +62,5 @@ class DatabaseHandler:
     def close(self):
         if self.conn:
             self.conn.close()
-            print("Database connection closed")
+            self.conn = None
+            print("Database connection closed.")
