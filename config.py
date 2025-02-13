@@ -11,7 +11,7 @@ DB_CONFIG = {
 
 BACKTEST_CONFIG = {
     # Date range (dates will be converted to hour start)
-    "start_date": "2024-10-01",
+    "start_date": "2024-09-01",
     "end_date": "2024-12-31",
     
     # Trading pairs to test
@@ -31,21 +31,35 @@ BACKTEST_CONFIG = {
         "reversion_threshold": 0.95,
         "min_reversion_count": 3
     },
+
+    "rsi": {
+        "period": 14,
+        "overbought": 70,
+        "oversold": 30,
+        "weight": 0.5, # Weight for combining RSI signal with EMA signal
+        "signal_threshold": 0.3  # Minimum combined signal strength for trade entry
+    },
     
     # Optimization configuration (all in hours)
     "optimization": {
         "training_days": 1440,           # 1440 = 60 days * 24 hours
         "min_training_days": 720,        # 30 days * 24 hours
         "testing_start": "2024-11-01",   # Will be converted to hour start
-        "testing_end": "2024-11-30",     # Will be converted to hour start
+        "testing_end": "2024-12-05",     # Will be converted to hour start
         
         # Parameter ranges (all in hours)
         "parameter_ranges": {
+            "rsi": {
+            "period": [7, 14, 21, 28],
+            "overbought": [65, 70, 75, 80],
+            "oversold": [20, 25, 30, 35],
+            "weight": [0.3, 0.4, 0.5, 0.6, 0.7]
+            },
             "ema": {
-                "short": range(12, 73, 12),      # [12, 24, 36, 48, 60, 72] hours
-                "medium": range(24, 145, 24),    # [24, 48, 72, 96, 120, 144] hours
+                "short": [12],    # range(12, 96, 6),      # [12, 24, 36, 48, 60, 72] hours
+                "medium": [24],       # range(24, 240, 12),    # [24, 48, 72, 96, 120, 144] hours
                 "volatility_window": [720],            # [360, 720, 1440],  # [15, 30, 60] days in hours
-                "volatility_threshold": [2.0, 3.0, 4.0], #[1.5, 2.0, 2.5]
+                #"volatility_threshold": [1.2, 1.6, 4.2, 4.8],   #[1.4, 1.8, 2.2, 2.6, 3.0, 3.4, 3.8, 4.2], #[1.5, 2.0, 2.5]
                 "min_trend_strength": [0.001, 0.002, 0.004]  
             },
             "volatility": {
@@ -62,7 +76,7 @@ BACKTEST_CONFIG = {
         "short": 48,                 # 2 days in hours
         "medium": 96,                # 4 days in hours
         "volatility_window": 720,    # 30 days in hours
-        "volatility_threshold": 1.5,
+        #"volatility_threshold": 1.5,
         "min_trend_strength": 0.002
     },
     

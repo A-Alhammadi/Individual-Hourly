@@ -1,0 +1,29 @@
+=== Test Period Performance for BTC/USD ===
+Test Period: 2024-12-01 to 2024-12-31
+
+Regime-Based EMA Strategy Metrics:
+Total Return: -0.50%
+Annualized Return: -6.04%
+Annualized Volatility: 36.42%
+Sharpe Ratio: 0.01
+Max Drawdown: 11.11%
+Number of Trades: 8
+Win Rate: 50.0%
+
+Buy & Hold Metrics:
+  Total Return: -4.27%
+  Annualized Return: -51.88%
+  Sharpe Ratio: -0.68
+
+
+Trade Statistics:
+Average Trade Duration: 79.7 hours
+Average Trade Size: $8659.96
+Largest Trade: $9213.08
+Total Trading Fees: $0.00
+
+Regime Statistics:
+High Volatility: 312.0 hours (43.3%)
+Normal Volatility: 408.0 hours (56.7%)
+Regime Transitions: 2
+Average Regime Duration: 360.0 hours

@@ -45,8 +45,9 @@ class TechnicalIndicators:
         
         # Calculate annualized volatility (using hours)
         hours_per_year = 365 * 24
-        volatility = np.sqrt(parkinson_factor * rolling_variance) * np.sqrt(hours_per_year)
-        
+        #volatility = np.sqrt(parkinson_factor * rolling_variance) * np.sqrt(hours_per_year)
+        volatility = np.sqrt(parkinson_factor * rolling_variance)
+
         if hasattr(df, 'is_optimization'):
             print("\nRolling Annualized Volatility:")
             print(f"Mean: {volatility.mean():.4f}")
@@ -67,28 +68,43 @@ class TechnicalIndicators:
         return volatility
 
     @staticmethod
-    def calculate_volatility_stats(volatility_series, window=720):
-        """Calculate rolling median and MAD of volatility using vectorized operations"""
+    def calculate_volatility_stats(volatility_series, window=720): #window was 720
+        """
+        Calculate rolling median and MAD of volatility using vectorized operations.
+        Reduced window from 720 -> 240, so we adapt quicker.
+        Fill in missing values after computing to avoid big NaN blocks.
+        """
         import numpy as np
-        
+
         values = volatility_series.to_numpy()
-        min_periods = window // 2
+        # Instead of window//2, consider something smaller:
+        # min_periods = max(window // 4, 10)  # e.g. at least 10 bars
+        min_periods = window // 3
         n = len(values)
-        
+
         rolling_median = np.full(n, np.nan)
         rolling_mad = np.full(n, np.nan)
-        
+
         for i in range(window - 1, n):
-            window_vals = values[max(0, i - window + 1):i + 1]
+            window_vals = values[i - window + 1 : i + 1]
             if len(window_vals) >= min_periods:
                 med = np.nanmedian(window_vals)
                 rolling_median[i] = med
                 rolling_mad[i] = np.nanmedian(np.abs(window_vals - med))
-            
+
             if i % 1000 == 0:
                 print(f"Processing volatility stats: {i}/{n} ({(i/n)*100:.1f}%)")
-        
-        return pd.Series(rolling_median, index=volatility_series.index), pd.Series(rolling_mad, index=volatility_series.index)
+
+        # Convert back to pandas Series
+        rolling_median = pd.Series(rolling_median, index=volatility_series.index)
+        rolling_mad = pd.Series(rolling_mad, index=volatility_series.index)
+
+        # Fill forward/back to remove initial NaNs
+        rolling_median = rolling_median.ffill().bfill()
+        rolling_mad = rolling_mad.ffill().bfill()
+
+        return rolling_median, rolling_mad
+
 
     @staticmethod
     def calculate_zscore(value, median, mad):
@@ -191,7 +207,8 @@ class TechnicalIndicators:
             current_zscore = zscores.iloc[i]
             
             if abs(current_zscore.item()) > dead_zone:
-                adjustment = 2.0 / (1.0 + np.exp(-current_zscore.item())) - 1.0
+                safe_zscore = np.clip(current_zscore.item(), -50, 50)  # Prevents extreme values
+                adjustment = 2.0 / (1.0 + np.exp(-safe_zscore)) - 1.0
                 new_short = float(base_short * (2.0 ** adjustment))
                 new_medium = float(base_medium * (2.0 ** adjustment))
                 new_short = max(base_short/2, min(base_short*2, new_short))
@@ -341,10 +358,51 @@ class TechnicalIndicators:
         trend_strength = trend_strength.clip(lower=0, upper=0.1)
         
         return trend_strength
+    
+    @staticmethod
+    def calculate_rsi(df, period=14):
+        """Calculate RSI technical indicator"""
+        print(f"\nCalculating RSI with period {period}...")
+        
+        # Calculate price changes
+        delta = df['close_price'].diff()
+        
+        # Separate gains and losses
+        gains = delta.copy()
+        losses = delta.copy()
+        gains[gains < 0] = 0
+        losses[losses > 0] = 0
+        losses = abs(losses)
+        
+        # Calculate initial average gains and losses
+        avg_gains = gains.rolling(window=period).mean()
+        avg_losses = losses.rolling(window=period).mean()
+        
+        # Calculate RS and RSI
+        rs = avg_gains / (avg_losses + 1e-10)  # Add small constant to prevent division by zero
+        rsi = 100 - (100 / (1 + rs))
+        
+        # Print diagnostics
+        print("\nRSI Statistics:")
+        print(f"Mean: {rsi.mean():.2f}")
+        print(f"Max: {rsi.max():.2f}")
+        print(f"Min: {rsi.min():.2f}")
+        print(f"NaN count: {rsi.isna().sum()}")
+        
+        return rsi
+
+    @staticmethod
+    def add_rsi(df, custom_params=None):
+        """Add RSI indicator to the dataframe"""
+        df = df.copy()
+        config = custom_params if custom_params is not None else BACKTEST_CONFIG['rsi']
+        
+        df['rsi'] = TechnicalIndicators.calculate_rsi(df, period=config['period'])
+        return df
 
     @staticmethod
     def add_all_indicators(df, custom_params=None):
-        """Add all technical indicators including adaptive EMAs"""
+        """Add all technical indicators including RSI"""
         print("\nAdding indicators...")
         print(f"Input data shape: {df.shape}")
         
@@ -352,13 +410,14 @@ class TechnicalIndicators:
         
         try:
             # Check if indicators already exist
-            if all(col in df.columns for col in ['ema_short', 'ema_medium', 'trend_strength', 'atr']):
+            if all(col in df.columns for col in ['ema_short', 'ema_medium', 'trend_strength', 'atr', 'rsi']):
                 print("Indicators already present, skipping recalculation")
                 return df
                 
             # Calculate all required indicators
             df['volatility'] = TechnicalIndicators.calculate_parkinson_volatility(df)
             df = TechnicalIndicators.add_adaptive_ema(df)
+            df = TechnicalIndicators.add_rsi(df, custom_params)
             
             # Calculate ATR
             df['true_range'] = pd.concat([
@@ -375,12 +434,6 @@ class TechnicalIndicators:
             
             # Calculate trend strength
             df['trend_strength'] = TechnicalIndicators.calculate_trend_strength(df)
-            
-            print("\nTrend Strength Statistics:")
-            print(f"Mean: {df['trend_strength'].mean():.6f}")
-            print(f"Max: {df['trend_strength'].max():.6f}")
-            print(f"Min: {df['trend_strength'].min():.6f}")
-            print(f"Median: {df['trend_strength'].median():.6f}")
             
             return df
             

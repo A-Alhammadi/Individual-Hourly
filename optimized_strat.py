@@ -65,8 +65,14 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
         'symbol': symbol,
         'training_period': {'start': start_date, 'end': end_date},
         'market_conditions': {
-            'high_volatility': {'ema': {'parameters': None, 'sharpe_ratio': -np.inf, 'trades': 0}},
-            'normal': {'ema': {'parameters': None, 'sharpe_ratio': -np.inf, 'trades': 0}}
+            'high_volatility': {
+                'ema': {'parameters': None, 'sharpe_ratio': -np.inf, 'trades': 0},
+                'rsi': {'parameters': None, 'sharpe_ratio': -np.inf, 'trades': 0}
+            },
+            'normal': {
+                'ema': {'parameters': None, 'sharpe_ratio': -np.inf, 'trades': 0},
+                'rsi': {'parameters': None, 'sharpe_ratio': -np.inf, 'trades': 0}
+            }
         },
         'timestamp': datetime.now().isoformat()
     }
@@ -74,7 +80,7 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
     # Get parameter ranges
     ema_ranges = BACKTEST_CONFIG['optimization']['parameter_ranges']['ema']
     vol_ranges = BACKTEST_CONFIG['optimization']['parameter_ranges']['volatility']
-    
+    rsi_ranges = BACKTEST_CONFIG['optimization']['parameter_ranges']['rsi']
     # Debug: Print parameter ranges
     print("\nParameter Ranges:")
     print("EMA parameters:", ema_ranges)
@@ -85,7 +91,7 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
         ema_ranges['short'],
         ema_ranges['medium'],
         ema_ranges['volatility_window'],
-        ema_ranges['volatility_threshold'],
+        #ema_ranges['volatility_threshold'],
         ema_ranges['min_trend_strength']
     ]
     
@@ -95,11 +101,20 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
         vol_ranges['baseline_lookback_gap'],
         vol_ranges['min_periods_multiplier']
     ]
+
+    rsi_params = [
+    rsi_ranges['period'],
+    rsi_ranges['overbought'],
+    rsi_ranges['oversold'],
+    rsi_ranges['weight']
+    ]
     
     ema_combinations = list(itertools.product(*ema_params))
     vol_combinations = list(itertools.product(*vol_params))
-    
-    total_combinations = len(ema_combinations) * len(vol_combinations)
+    rsi_combinations = list(itertools.product(*rsi_params))
+
+    total_combinations = len(ema_combinations) * len(vol_combinations) * len(rsi_combinations)
+
     print(f"\nTesting {total_combinations} total parameter combinations...")
     print(f"Number of EMA combinations: {len(ema_combinations)}")
     print(f"Number of volatility combinations: {len(vol_combinations)}")
@@ -120,8 +135,8 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
             'short': ema_combo[0],
             'medium': ema_combo[1],
             'volatility_window': ema_combo[2],
-            'volatility_threshold': ema_combo[3],
-            'min_trend_strength': ema_combo[4]
+            #'volatility_threshold': ema_combo[3],
+            'min_trend_strength': ema_combo[3]
         }
         
         # Skip invalid EMA combinations
@@ -129,8 +144,6 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
             continue
             
         for vol_combo in vol_combinations:
-            combinations_tested += 1
-            
             vol_dict = {
                 'annualization_factor': vol_combo[0],
                 'baseline_window_multiplier': vol_combo[1],
@@ -138,110 +151,120 @@ def optimize_strategy_parameters(df, symbol, start_date, end_date):
                 'min_periods_multiplier': vol_combo[3]
             }
 
-            if combinations_tested % 100 == 0:
-                print(f"\nProgress: {combinations_tested}/{total_combinations} combinations tested")
-                print(f"Current parameters:")
-                print(f"EMA: {ema_dict}")
-                print(f"Volatility: {vol_dict}")
-            
-            # Combine parameters
-            full_params = {
-                'ema': ema_dict,
-                'volatility': vol_dict
-            }
-            
-            try:
-                # Use the pre-calculated indicators in full_df
-                test_strategy = OptimizedStrategy({})
-                regimes = pd.Series(index=full_df.index, dtype='object')
-                
-                # Detect regimes for each bar in the entire (warmup + training) set
-                for i in range(len(full_df)):
-                    regimes.iloc[i] = test_strategy.detect_market_regime(
-                        full_df, 
-                        i, 
-                        full_params
-                    )
-                
-                # Only use the actual training period (exclude warmup)
-                train_mask = (full_df.index >= train_start) & (full_df.index <= train_end)
-                train_data = full_df[train_mask].copy()
-                train_regimes = regimes[train_mask]
-                
-                # Split data into regimes
-                high_vol_mask = (train_regimes == 'high_volatility')
-                normal_mask = ~high_vol_mask
-                
-                # Optional debug: regime distribution
-                high_vol_count = high_vol_mask.sum()
-                normal_count = normal_mask.sum()
-                print(f"\nRegime distribution for current combination:")
-                print(f"High volatility periods: {high_vol_count}")
-                print(f"Normal periods: {normal_count}")
-                
-                total_sharpe = 0
-                regime_count = 0
-                
-                # Evaluate each regime separately
-                for regime, rmask in [('high_volatility', high_vol_mask), ('normal', normal_mask)]:
-                    regime_data = train_data[rmask].copy()
-                    if len(regime_data) < 20:
-                        print(f"Skipping {regime} regime due to insufficient data: {len(regime_data)} periods")
-                        continue
+            # Add RSI combinations loop
+            for rsi_combo in rsi_combinations:
+                rsi_dict = {
+                    'period': rsi_combo[0],
+                    'overbought': rsi_combo[1],
+                    'oversold': rsi_combo[2],
+                    'weight': rsi_combo[3],
+                    'signal_threshold': BACKTEST_CONFIG['rsi']['signal_threshold']
+                }
+
+                # Update how parameters are combined
+                full_params = {
+                    'ema': ema_dict,
+                    'volatility': vol_dict,
+                    'rsi': rsi_dict
+                }
+
+                try:
+                    # Use the pre-calculated indicators in full_df
+                    test_strategy = OptimizedStrategy({})
+                    regimes = pd.Series(index=full_df.index, dtype='object')
                     
-                    # Use the pre-calculated indicators for backtest
-                    sharpe = test_strategy.test_parameters(
-                        df_indicators=regime_data,  # Pre-calculated
-                        train_mask=rmask,
-                        regime=regime,
-                        full_params=full_params
-                    )
+                    # Detect regimes for each bar in the entire (warmup + training) set
+                    for i in range(len(full_df)):
+                        regimes.iloc[i] = test_strategy.detect_market_regime(
+                            full_df, 
+                            i, 
+                            full_params
+                        )
                     
-                    if sharpe is not None:
-                        # Generate signals to count trades
-                        signals = TradingStrategies.ema_strategy(regime_data, ema_dict)
-                        num_trades = len(signals[signals != 0])
+                    # Only use the actual training period (exclude warmup)
+                    train_mask = (full_df.index >= train_start) & (full_df.index <= train_end)
+                    train_data = full_df[train_mask].copy()
+                    train_regimes = regimes[train_mask]
+                    
+                    # Split data into regimes
+                    high_vol_mask = (train_regimes == 'high_volatility')
+                    normal_mask = ~high_vol_mask
+                    
+                    # Optional debug: regime distribution
+                    high_vol_count = high_vol_mask.sum()
+                    normal_count = normal_mask.sum()
+                    print(f"\nRegime distribution for current combination:")
+                    print(f"High volatility periods: {high_vol_count}")
+                    print(f"Normal periods: {normal_count}")
+                    
+                    total_sharpe = 0
+                    regime_count = 0
+                    
+                    # Evaluate each regime separately
+                    for regime, rmask in [('high_volatility', high_vol_mask), ('normal', normal_mask)]:
+                        regime_data = train_data[rmask].copy()
+                        if len(regime_data) < 20:
+                            print(f"Skipping {regime} regime due to insufficient data: {len(regime_data)} periods")
+                            continue
                         
-                        if num_trades > 0:  # Only consider valid if we have trades
-                            print(f"{regime} regime - Current Sharpe: {sharpe:.4f}, Trades: {num_trades}")
+                        # Use the pre-calculated indicators for backtest
+                        sharpe = test_strategy.test_parameters(
+                            df_indicators=regime_data,  # Pre-calculated
+                            train_mask=rmask,
+                            regime=regime,
+                            full_params=full_params
+                        )
+                        
+                        if sharpe is not None:
+                            # Generate signals to count trades - Use full_params instead of ema_dict
+                            signals = TradingStrategies.ema_strategy(regime_data, full_params)
+                            num_trades = len(signals[signals != 0])
                             
-                            # Check if this is a new best for that regime
-                            if sharpe > best_params[regime]['sharpe']:
-                                best_params[regime]['params'] = full_params.copy()
-                                best_params[regime]['sharpe'] = float(sharpe)
-                                best_params[regime]['trades'] = num_trades
+                            if num_trades > 0:  # Only consider valid if we have trades
+                                print(f"{regime} regime - Current Sharpe: {sharpe:.4f}, Trades: {num_trades}")
                                 
-                                # Update optimization results
-                                optimization_results['market_conditions'][regime]['ema'].update({
-                                    'parameters': full_params.copy(),
-                                    'sharpe_ratio': float(sharpe),
-                                    'trades': num_trades
-                                })
-                                print(f"New best parameters found for {regime} regime")
-                                print(f"Parameters: {full_params}")
-                                print(f"Sharpe Ratio: {sharpe:.4f}")
-                                print(f"Number of trades: {num_trades}")
-                            
-                            total_sharpe += sharpe
-                            regime_count += 1
-                            valid_combinations += 1
+                                # Check if this is a new best for that regime
+                                if sharpe > best_params[regime]['sharpe']:
+                                    best_params[regime]['params'] = full_params.copy()
+                                    best_params[regime]['sharpe'] = float(sharpe)
+                                    best_params[regime]['trades'] = num_trades
+                                    
+                                    # Update optimization results
+                                    optimization_results['market_conditions'][regime]['ema'].update({
+                                        'parameters': full_params.copy(),
+                                        'sharpe_ratio': float(sharpe),
+                                        'trades': num_trades
+                                    })
+                                    optimization_results['market_conditions'][regime]['rsi'].update({
+                                        'parameters': full_params['rsi'].copy(),
+                                        'sharpe_ratio': float(sharpe),
+                                        'trades': num_trades
+                                    })
+                                    print(f"New best parameters found for {regime} regime")
+                                    print(f"Parameters: {full_params}")
+                                    print(f"Sharpe Ratio: {sharpe:.4f}")
+                                    print(f"Number of trades: {num_trades}")
+                                
+                                total_sharpe += sharpe
+                                regime_count += 1
+                                valid_combinations += 1
+                    
+                    # Track best overall parameters (across both regimes)
+                    if regime_count > 0:
+                        avg_sharpe = total_sharpe / regime_count
+                        if avg_sharpe > best_score:
+                            best_score = avg_sharpe
+                            # Optionally update best across both regimes if desired
+                            for rgm in ['high_volatility', 'normal']:
+                                if rgm not in optimization_results['market_conditions']:
+                                    optimization_results['market_conditions'][rgm] = {
+                                        'ema': {'parameters': full_params.copy(), 'sharpe_ratio': -np.inf, 'trades': 0}
+                                    }
                 
-                # Track best overall parameters (across both regimes)
-                if regime_count > 0:
-                    avg_sharpe = total_sharpe / regime_count
-                    if avg_sharpe > best_score:
-                        best_score = avg_sharpe
-                        # Optionally update best across both regimes if desired
-                        for rgm in ['high_volatility', 'normal']:
-                            if rgm not in optimization_results['market_conditions']:
-                                optimization_results['market_conditions'][rgm] = {
-                                    'ema': {'parameters': full_params.copy(), 'sharpe_ratio': -np.inf, 'trades': 0}
-                                }
+                except Exception as e:
+                    print(f"Error testing parameters {full_params}: {str(e)}")
+                    continue
             
-            except Exception as e:
-                print(f"Error testing parameters {full_params}: {str(e)}")
-                continue
-    
     print(f"\nOptimization complete:")
     print(f"Total combinations tested: {combinations_tested}")
     print(f"Valid combinations found: {valid_combinations}")
@@ -303,70 +326,82 @@ class OptimizedStrategy:
                     'volatility': BACKTEST_CONFIG['volatility'].copy()
                 }
     
-    def detect_market_regime(self, df, i, params):
-        """Detect market regime using Parkinson volatility and adaptive thresholds"""
-        if params is None:
-            params = {
-                'ema': BACKTEST_CONFIG['ema'].copy(),
-                'volatility': BACKTEST_CONFIG['volatility'].copy()
-            }
+    def detect_market_regime(self, df, i, params=None):
+        """
+        Detects 'normal' vs 'high_volatility' using a z-score approach.
+        This method requires that df['volatility'] exists (Parkinson volatility).
+        We also assume we have rolling_median and rolling_mad cached, or
+        else we compute them on the fly.
+        """
+        # If no regime is set yet, default to normal:
+        if not hasattr(self, 'last_regime'):
+            self.last_regime = 'normal'
         
-        # Get volatility configuration
-        vol_config = params.get('volatility', BACKTEST_CONFIG['volatility'])
-        vol_window = params['ema'].get('volatility_window', BACKTEST_CONFIG['ema']['volatility_window'])
-        vol_threshold = params['ema'].get('volatility_threshold', BACKTEST_CONFIG['ema']['volatility_threshold'])
-        
-        if i < vol_window:
-            return 'normal'
-        
-        # Calculate statistics if not cached
+        # Ensure we have a minimum of 'i' bars to do anything.
+        if i < 10:
+            return 'normal'  # Not enough data yet for any meaningful classification
+
+        # 1) If not cached yet, compute rolling median & MAD for 'volatility'.
+        #    We only do this once, then store in self._cached_stats
         if not hasattr(self, '_cached_stats') or self._cached_stats is None:
-            self._cached_stats = TechnicalIndicators.calculate_volatility_stats(df['volatility'])
-        
-        rolling_median, rolling_mad = self._cached_stats
-        
-        # Get values for current position
+            rolling_median, rolling_mad = TechnicalIndicators.calculate_volatility_stats(df['volatility'])
+            self._cached_stats = (rolling_median, rolling_mad)
+        else:
+            rolling_median, rolling_mad = self._cached_stats
+
+        # 2) Get current volatility and corresponding median/MAD
         current_vol = df['volatility'].iloc[i]
-        
-        # Get median and MAD
         med_val = rolling_median.iloc[i]
         mad_val = rolling_mad.iloc[i]
-        
-        if np.isnan(med_val) or np.isnan(mad_val) or mad_val == 0:
-            return 'normal'
-        
-        # Calculate z-score
-        zscore = (current_vol - med_val) / (mad_val + 1e-10)
-        
-        # Print diagnostics periodically
-        if i % 1000 == 0:
-            print(f"\nPosition {i}:")
-            print(f"Current volatility: {current_vol:.6f}")
-            print(f"Z-score: {zscore:.4f}")
-            print(f"Current regime: {self.last_regime}")
-            print(f"Regime duration: {self.regime_duration} hours")
-        
-        # Increase regime duration
+
+        # Safety check: If MAD is zero or NaN, we can't compute z-score, so return last regime
+        if np.isnan(med_val) or np.isnan(mad_val) or (mad_val == 0):
+            print(f"⚠ Warning at bar {i}: Invalid MAD ({mad_val}) or Median ({med_val}), keeping regime: {self.last_regime}")
+            return self.last_regime  
+
+        # 3) Calculate z-score = how many MADs away current_vol is from median
+        zscore = abs((current_vol - med_val) / (mad_val + 1e-10))
+
+        # **DEBUG LOGGING**
+        if i % 200 == 0:  # Print every 200 bars for tracking
+            print(f"🔍 Bar {i}: vol={current_vol:.4f}, median={med_val:.4f}, mad={mad_val:.4f}, zscore={zscore:.3f}")
+
+        # 4) Set z-score thresholds for "high volatility" vs. "normal."
+        high_zscore_threshold = 2.0   # More conservative threshold for entering high vol
+        exit_zscore_threshold = 1.5   # More conservative threshold for exiting high vol
+
+        # Track how long we've been in the current regime
+        if not hasattr(self, 'regime_duration'):
+            self.regime_duration = 0
+
+        # Increase the duration by 1 bar
         self.regime_duration += 1
-        
-        # More conservative thresholds
-        #high_vol_threshold = vol_threshold * 2.0  # Increased from 1.5
-        #exit_threshold = vol_threshold  # Increased from 0.75
-        high_vol_threshold = vol_threshold * 3.0   # or 4.0, if you're still seeing >90% 
-        exit_threshold = vol_threshold * 0.75      # let it exit more quickly
-        
-        # Determine new regime with hysteresis
+
+        # Minimum periods before allowing regime switches
+        if not hasattr(self, 'min_regime_duration'):
+            self.min_regime_duration = 4  # 4 hours minimum before any regime switch
+
+        # Minimum time to stay in high volatility
+        min_high_vol_duration = 8  # 8 hours minimum before switching back to normal
+
         new_regime = self.last_regime
-        
+
+        # 5) Use hysteresis logic:
         if self.last_regime == 'normal':
-            if zscore > high_vol_threshold and self.regime_duration >= self.min_regime_duration:
+            # Switch to high_volatility if zscore is above high_zscore_threshold
+            # and we've spent enough bars in the current regime
+            if zscore > high_zscore_threshold and self.regime_duration >= self.min_regime_duration:
                 new_regime = 'high_volatility'
-                self.regime_duration = 0
-        else:  # In high_volatility
-            if zscore < -exit_threshold and self.regime_duration >= self.min_regime_duration:
+                self.regime_duration = 0  # reset
+                print(f" Switching to HIGH VOLATILITY at bar {i}, z-score={zscore:.3f}")
+        else:
+            # If we're currently in high_volatility, exit to normal if zscore < exit_zscore_threshold
+            # and we've been in high vol for at least min_high_vol_duration
+            if zscore < exit_zscore_threshold and self.regime_duration >= max(self.min_regime_duration, min_high_vol_duration):
                 new_regime = 'normal'
                 self.regime_duration = 0
-        
+                print(f"⬇ Switching to NORMAL at bar {i}, z-score={zscore:.3f}")
+
         self.last_regime = new_regime
         return new_regime
 
@@ -376,7 +411,7 @@ class OptimizedStrategy:
             return None
         
         # Generate signals using existing indicators
-        signals = TradingStrategies.ema_strategy(df_indicators, full_params['ema'])
+        signals = TradingStrategies.ema_strategy(df_indicators, full_params)
         
         # Calculate returns
         strategy_returns = df_indicators['close_price'].pct_change() * signals.shift(1)

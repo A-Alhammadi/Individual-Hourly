@@ -1,0 +1,88 @@
+{
+  "optimization_id": "opt_BTC_USD_20250213_203756",
+  "symbol": "BTC/USD",
+  "training_period": {
+    "start": "2024-09-01 23:00:00",
+    "end": "2024-10-31 23:00:00"
+  },
+  "market_conditions": {
+    "high_volatility": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 12,
+            "medium": 24,
+            "volatility_window": 720,
+            "min_trend_strength": 0.002
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 1.5,
+            "baseline_lookback_gap": 24,
+            "min_periods_multiplier": 0.75
+          },
+          "rsi": {
+            "period": 7,
+            "overbought": 75,
+            "oversold": 20,
+            "weight": 0.4,
+            "signal_threshold": 0.3
+          }
+        },
+        "sharpe_ratio": 5.665545585283005,
+        "trades": 516
+      },
+      "rsi": {
+        "parameters": {
+          "period": 7,
+          "overbought": 75,
+          "oversold": 20,
+          "weight": 0.4,
+          "signal_threshold": 0.3
+        },
+        "sharpe_ratio": 5.665545585283005,
+        "trades": 516
+      }
+    },
+    "normal": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 12,
+            "medium": 24,
+            "volatility_window": 720,
+            "min_trend_strength": 0.001
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 1.5,
+            "baseline_lookback_gap": 24,
+            "min_periods_multiplier": 0.75
+          },
+          "rsi": {
+            "period": 7,
+            "overbought": 75,
+            "oversold": 35,
+            "weight": 0.7,
+            "signal_threshold": 0.3
+          }
+        },
+        "sharpe_ratio": 1.2036238751707704,
+        "trades": 279
+      },
+      "rsi": {
+        "parameters": {
+          "period": 7,
+          "overbought": 75,
+          "oversold": 35,
+          "weight": 0.7,
+          "signal_threshold": 0.3
+        },
+        "sharpe_ratio": 1.2036238751707704,
+        "trades": 279
+      }
+    }
+  },
+  "timestamp": "2025-02-13T20:37:56.731382",
+  "results_file": "backtest_results\\BTC_USD\\optimization_opt_BTC_USD_20250213_203756.json"
+}

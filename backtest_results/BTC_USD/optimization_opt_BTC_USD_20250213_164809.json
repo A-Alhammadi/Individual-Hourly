@@ -1,0 +1,63 @@
+{
+  "optimization_id": "opt_BTC_USD_20250213_164809",
+  "symbol": "BTC/USD",
+  "training_period": {
+    "start": "2024-09-01 23:00:00",
+    "end": "2024-10-31 23:00:00"
+  },
+  "market_conditions": {
+    "high_volatility": {
+      "ema": {
+        "parameters": null,
+        "sharpe_ratio": -Infinity,
+        "trades": 0
+      },
+      "rsi": {
+        "parameters": null,
+        "sharpe_ratio": -Infinity,
+        "trades": 0
+      }
+    },
+    "normal": {
+      "ema": {
+        "parameters": {
+          "ema": {
+            "short": 12,
+            "medium": 24,
+            "volatility_window": 720,
+            "volatility_threshold": 1.2,
+            "min_trend_strength": 0.002
+          },
+          "volatility": {
+            "annualization_factor": 8760,
+            "baseline_window_multiplier": 1.5,
+            "baseline_lookback_gap": 24,
+            "min_periods_multiplier": 0.75
+          },
+          "rsi": {
+            "period": 7,
+            "overbought": 75,
+            "oversold": 20,
+            "weight": 0.4,
+            "signal_threshold": 0.3
+          }
+        },
+        "sharpe_ratio": 4.4879801828445185,
+        "trades": 1154
+      },
+      "rsi": {
+        "parameters": {
+          "period": 7,
+          "overbought": 75,
+          "oversold": 20,
+          "weight": 0.4,
+          "signal_threshold": 0.3
+        },
+        "sharpe_ratio": 4.4879801828445185,
+        "trades": 1154
+      }
+    }
+  },
+  "timestamp": "2025-02-13T16:48:09.565495",
+  "results_file": "backtest_results\\BTC_USD\\optimization_opt_BTC_USD_20250213_164809.json"
+}
