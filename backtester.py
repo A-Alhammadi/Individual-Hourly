@@ -11,7 +11,10 @@ class Backtester:
         self.strategy_name = strategy_name
         self.strategy_func = strategy_func
         self.initial_capital = float(BACKTEST_CONFIG['initial_capital'])
+        
+        # This is your *base* position size; you will multiply it by position_scale
         self.position_size = float(BACKTEST_CONFIG['position_size'])
+        
         self.trading_fee = float(BACKTEST_CONFIG['trading_fee'])
         
         # Map price column names
@@ -31,7 +34,6 @@ class Backtester:
         df_copy = self.df.copy()  # Make an explicit copy
         df_copy = TechnicalIndicators.add_all_indicators(df_copy)  # Add indicators here
         signals = self.strategy_func(df_copy)        
-        #signals = self.strategy_func(self.df)
 
         # Initialize portfolio metrics with float dtype
         portfolio = pd.DataFrame(index=self.df.index)
@@ -43,6 +45,13 @@ class Backtester:
         for col_type, col_name in self.price_columns.items():
             portfolio[col_type] = self.df[col_name]
 
+        # Also copy position_scale if it exists (created in add_adaptive_ema)
+        if 'position_scale' in self.df.columns:
+            portfolio['position_scale'] = self.df['position_scale']
+        else:
+            # Default to 1.0 if not present
+            portfolio['position_scale'] = 1.0
+        
         # Ensure float dtype for numerical columns
         portfolio = portfolio.astype({
             'holdings': 'float64',
@@ -50,27 +59,36 @@ class Backtester:
             'close': 'float64',
             'high': 'float64',
             'low': 'float64',
-            'open': 'float64'
+            'open': 'float64',
+            'position_scale': 'float64'
         })
 
         position = 0
         trades = []
 
         for i in range(len(portfolio)):
+
+            price = float(portfolio.loc[portfolio.index[i], 'close'])
+
             if i > 0:
                 portfolio.loc[portfolio.index[i], 'cash'] = portfolio.loc[portfolio.index[i-1], 'cash']
                 portfolio.loc[portfolio.index[i], 'holdings'] = portfolio.loc[portfolio.index[i-1], 'holdings']
 
             signal = portfolio.iloc[i, portfolio.columns.get_loc('signal')]
 
+            # We fetch the position scale for this bar:
+            scale_factor = portfolio.iloc[i, portfolio.columns.get_loc('position_scale')]
+            
             # 1) If the signal is > 0, we treat that as "BUY or COVER"
             if signal > 0:
-                # If position == 0, we open a new long
-                if position == 0:
+                # If position == 0, we open a new long position
+                if position == 0:  # Open new long
                     available_capital = float(portfolio.loc[portfolio.index[i], 'cash'])
-                    position_value = available_capital * self.position_size
-                    units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
 
+                    # Ensure position_value does not exceed available capital
+                    position_value = min(available_capital, available_capital * self.position_size * scale_factor)
+
+                    units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
                     fee = position_value * self.trading_fee
 
                     portfolio.loc[portfolio.index[i], 'holdings'] = float(units)
@@ -80,7 +98,7 @@ class Backtester:
                     trades.append({
                         'date': portfolio.index[i],
                         'type': 'BUY',
-                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'price': price,
                         'units': float(units),
                         'value': float(position_value),
                         'fee': float(fee)
@@ -89,21 +107,22 @@ class Backtester:
                 # If position == -1, then signal > 0 means "COVER" (close short)
                 elif position == -1:
                     units = float(portfolio.loc[portfolio.index[i], 'holdings'])  # negative
-                    position_value = abs(units) * float(portfolio.loc[portfolio.index[i], 'close'])
+                    price = float(portfolio.loc[portfolio.index[i], 'close'])
+                    position_value = abs(units) * price
 
                     fee = position_value * self.trading_fee
 
                     portfolio.loc[portfolio.index[i], 'holdings'] = 0.0
                     portfolio.loc[portfolio.index[i], 'cash'] = float(
-                    portfolio.loc[portfolio.index[i], 'cash'] - position_value - fee
-                )
+                        portfolio.loc[portfolio.index[i], 'cash'] - position_value - fee
+                    )
 
                     position = 0
 
                     trades.append({
                         'date': portfolio.index[i],
                         'type': 'COVER',
-                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'price': price,
                         'units': float(units),  # negative means we were short
                         'value': float(position_value),
                         'fee': float(fee)
@@ -112,22 +131,23 @@ class Backtester:
             # 2) If the signal is < 0, we treat that as "SELL or SHORT"
             elif signal < 0:
                 # If position == 0, we open a new short
-                if position == 0:
+                if position == 0:  # Open new short
                     available_capital = float(portfolio.loc[portfolio.index[i], 'cash'])
-                    position_value = available_capital * self.position_size
-                    units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
 
+                    # Ensure position_value does not exceed available capital
+                    position_value = min(available_capital, available_capital * self.position_size * scale_factor)
+
+                    units = position_value / float(portfolio.loc[portfolio.index[i], 'close'])
                     fee = position_value * self.trading_fee
 
-                    # holdings is negative to denote a short
-                    portfolio.loc[portfolio.index[i], 'holdings'] = float(-units)
+                    portfolio.loc[portfolio.index[i], 'holdings'] = float(-units)  # Negative for shorts
                     portfolio.loc[portfolio.index[i], 'cash'] = float(available_capital + position_value - fee)
                     position = -1
 
                     trades.append({
                         'date': portfolio.index[i],
                         'type': 'SHORT',
-                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'price': price,
                         'units': float(-units),
                         'value': float(position_value),
                         'fee': float(fee)
@@ -136,18 +156,21 @@ class Backtester:
                 # If position == 1, then signal < 0 means "SELL" (close long)
                 elif position == 1:
                     units = float(portfolio.loc[portfolio.index[i], 'holdings'])
-                    position_value = units * float(portfolio.loc[portfolio.index[i], 'close'])
+                    price = float(portfolio.loc[portfolio.index[i], 'close'])
+                    position_value = units * price
 
                     fee = position_value * self.trading_fee
 
                     portfolio.loc[portfolio.index[i], 'holdings'] = 0.0
-                    portfolio.loc[portfolio.index[i], 'cash'] = float(portfolio.loc[portfolio.index[i], 'cash'] + position_value - fee)
+                    portfolio.loc[portfolio.index[i], 'cash'] = float(
+                        portfolio.loc[portfolio.index[i], 'cash'] + position_value - fee
+                    )
                     position = 0
 
                     trades.append({
                         'date': portfolio.index[i],
                         'type': 'SELL',
-                        'price': float(portfolio.loc[portfolio.index[i], 'close']),
+                        'price': price,
                         'units': float(units),
                         'value': float(position_value),
                         'fee': float(fee)
@@ -192,14 +215,22 @@ class Backtester:
         if num_trades > 1:
             paired_trades = trades_df.iloc[::2]  # Entry trades (every other row)
             exit_trades = trades_df.iloc[1::2]   # Exit trades
-            wins = sum(
-                exit_trades['value'].reset_index(drop=True).to_numpy()
-                >
-                paired_trades['value'].reset_index(drop=True).to_numpy()
-            )
-            win_rate = wins / len(paired_trades)
+
+            # Ensure both lists have the same length before comparing
+            min_length = min(len(paired_trades), len(exit_trades))
+
+            if min_length > 0:
+                wins = sum(
+                    exit_trades['value'].reset_index(drop=True).iloc[:min_length].to_numpy()
+                    >
+                    paired_trades['value'].reset_index(drop=True).iloc[:min_length].to_numpy()
+                )
+                win_rate = wins / min_length
+            else:
+                win_rate = 0  # If no valid trades, win rate is 0
         else:
             win_rate = 0
+
 
         # Prepare overall metrics
         metrics = {
@@ -226,7 +257,6 @@ class Backtester:
                 )
             }
         }
-
         # Add trade analysis by regime if regime changes are available
         if hasattr(signals, 'regime_changes'):
             trades_df = trades_df.reset_index(drop=True)  # Just reset_index, no rename

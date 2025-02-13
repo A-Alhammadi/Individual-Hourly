@@ -11,8 +11,8 @@ DB_CONFIG = {
 
 BACKTEST_CONFIG = {
     # Date range (dates will be converted to hour start)
-    "start_date": "2023-01-01",
-    "end_date": "2024-02-01",
+    "start_date": "2024-10-01",
+    "end_date": "2024-12-31",
     
     # Trading pairs to test
     "symbols": ["BTC/USD"],
@@ -34,10 +34,10 @@ BACKTEST_CONFIG = {
     
     # Optimization configuration (all in hours)
     "optimization": {
-        "training_days": 1440,           # 60 days * 24 hours
+        "training_days": 1440,           # 1440 = 60 days * 24 hours
         "min_training_days": 720,        # 30 days * 24 hours
-        "testing_start": "2024-01-01",   # Will be converted to hour start
-        "testing_end": "2024-01-31",     # Will be converted to hour start
+        "testing_start": "2024-11-01",   # Will be converted to hour start
+        "testing_end": "2024-11-30",     # Will be converted to hour start
         
         # Parameter ranges (all in hours)
         "parameter_ranges": {
